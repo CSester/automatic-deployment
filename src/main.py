@@ -20,8 +20,8 @@ def clone(repository, commit):
   if repository in clonedRepositories:
     raise 'Circular dependency'
 
-  cloneFolder = 'repo' + str(cloneIndex)
   global cloneIndex
+  cloneFolder = 'repo' + str(cloneIndex)
   cloneIndex += 1
 
   local('git clone ' + repository + ' -b ' + commit + ' ' + cloneFolder)
@@ -33,7 +33,7 @@ def clone(repository, commit):
 def getDependencies():
   with lcd('deploy'):
     currentPwd = local('pwd', capture=True)
-    with open(path.join(currentPwd, 'deploy.json')) as deployConfFile:    
+    with open(path.join(currentPwd, 'deploy.json')) as deployConfFile:
       deployConf = json.load(deployConfFile)
 
   return deployConf['dependencies']
@@ -50,7 +50,8 @@ def main():
             from deploy import runDeploy
             sys.path.remove(local('pwd', capture=True))
             execute(runDeploy)
-      except Exception:
+      except Exception as e:
+        print(e)
         pass
       finally:
         del sys.modules['deploy']
