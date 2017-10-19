@@ -1,5 +1,0 @@
-user = 
-hosts = 
-tmpFolder = 
-source-repository = 'git@github.com:CSester/dummy-repo1.git'
-source-commit = 'test-branch'

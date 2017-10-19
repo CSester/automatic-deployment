@@ -38,7 +38,12 @@ def getDependencies():
 
   return deployConf['dependencies']
 
-def main():
+def main(configPath):
+  with open(configPath) as envFile:
+    envData = json.load(envFile)
+    for key, val in envData.items():
+      env[key] = val
+
   local('mkdir -p ' + env.tmpFolder)
   with lcd(env.tmpFolder):
     recursiveClone(env["source-repository"], env["source-commit"])
