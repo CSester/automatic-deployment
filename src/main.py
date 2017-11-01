@@ -26,7 +26,7 @@ def clone(repository, commit):
 
   local('git clone ' + repository + ' -b ' + commit + ' ' + cloneFolder)
 
-  clonedRepositories.append((repository, cloneFolder))
+  clonedRepositories.append((repository, commit, cloneFolder))
 
   return cloneFolder
 
@@ -49,15 +49,17 @@ def main(configPath):
     recursiveClone(env["source-repository"], env["source-commit"])
     for repo in reversed(clonedRepositories):
       try:
-        with lcd(repo[1]):
+        with lcd(repo[2]):
           with lcd('deploy'):
             sys.path.append(local('pwd', capture=True))
             from deploy import runDeploy
             sys.path.remove(local('pwd', capture=True))
+            env['source-repository'] = repo[0]
+            env['source-commit'] = repo[1]
             execute(runDeploy)
       except Exception as e:
         print(e)
         pass
       finally:
         del sys.modules['deploy']
-        local('rm -rf ' + repo[1])
+        local('rm -rf ' + repo[2])
