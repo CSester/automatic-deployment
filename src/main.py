@@ -47,6 +47,30 @@ def main(configPath):
   local('mkdir -p ' + env.tmpFolder)
   with lcd(env.tmpFolder):
     recursiveClone(env["source-repository"], env["source-commit"])
+    print("Checking canRun functions...")
+    for repo in reversed(clonedRepositories):
+      try:
+        with lcd(path.join(repo[2], 'deploy')):
+          sys.path.append(local('pwd', capture=True))
+          import deploy
+          if 'canRun' not in dir(deploy):
+            print("No function canRun for deploy script in {}!".format(repo[0]))
+          else:
+            print("Function canRun exist for deploy script in {}!".format(repo[0]))
+            if deploy.canRun():
+              print("Deploy can run!")
+            else:
+              raise EnvironmentError("Can not continue, missing requirements for deploy script in {}! Aborting...".format(repo[0]))
+          sys.path.remove(local('pwd', capture=True))
+          env['source-repository'] = repo[0]
+          env['source-commit'] = repo[1]
+      except ImportError as e:
+        print("No module deploy for {}!".format(repo[0]))
+        pass
+      finally:
+        del sys.modules['deploy']
+    print("Check done!")
+    print("Running deploy functions...")
     for repo in reversed(clonedRepositories):
       try:
         with lcd(repo[2]):
@@ -63,3 +87,4 @@ def main(configPath):
       finally:
         del sys.modules['deploy']
         local('rm -rf ' + repo[2])
+    print("Run done!")
