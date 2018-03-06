@@ -1,0 +1,8 @@
+{
+  "hosts": "",
+  "user": "",
+  "password": "",
+  "source-commit": "test-branch",
+  "source-repository": "git@github.com:CSester/dummy-repo1.git",
+  "tmpFolder": "tmp"
+}

@@ -67,7 +67,7 @@ def main(configPath):
         pass
       except EnvironmentError as e:
         local('rm -rf ../{}'.format(env.tmpFolder))
-        raise e
+        raise
       finally:
         del sys.modules['deploy']
     print("Check done!")
