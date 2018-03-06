@@ -62,11 +62,12 @@ def main(configPath):
             else:
               raise EnvironmentError("Can not continue, missing requirements for deploy script in {}! Aborting...".format(repo[0]))
           sys.path.remove(local('pwd', capture=True))
-          env['source-repository'] = repo[0]
-          env['source-commit'] = repo[1]
       except ImportError as e:
         print("No module deploy for {}!".format(repo[0]))
         pass
+      except EnvironmentError as e:
+        local('rm -rf ../{}'.format(env.tmpFolder))
+        raise e
       finally:
         del sys.modules['deploy']
     print("Check done!")
