@@ -57,7 +57,12 @@ def main(configPath):
             print("No function canRun for deploy script in {}!".format(repo[0]))
           else:
             print("Function canRun exist for deploy script in {}!".format(repo[0]))
-            if deploy.canRun():
+            try:
+              ret_value = deploy.canRun()
+            except Exception as e:
+              print(e)
+              ret_value = False
+            if ret_value:
               print("Deploy can run!")
             else:
               raise EnvironmentError("Can not continue, missing requirements for deploy script in {}! Aborting...".format(repo[0]))
