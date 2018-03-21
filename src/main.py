@@ -1,34 +1,66 @@
 import json
+from copy import deepcopy
+
 from fabric.api import lcd, local, env, execute
 from os import path
 import sys
 
-clonedRepositories = []
+
+class Repository:
+  def __init__(self, id, repository, commit, cloneFolder, dependencies):
+    self.id = id
+    self.repository = repository
+    self.commit = commit
+    self.cloneFolder = cloneFolder
+    self.dependencies = dependencies
+
+  def __str__(self):
+    return "({}, {}, {}, {})".format(self.id, self.repository, self.commit, self.cloneFolder)
+
+
+clonedRepositories = {}
 
 cloneIndex = 1
 
-def recursiveClone(repository, commit):
-  clonedFolderName = clone(repository, commit)
 
+def recursiveClone(repository, commit, inKeys=None):
+  if inKeys is None:
+    inKeys = {}
+  clonedFolderName = clone(repository, commit, inKeys)
+  if clonedFolderName is None:
+    return
   with lcd(clonedFolderName):
     dependencies = getDependencies()
 
   for dependency in dependencies:
-    recursiveClone(dependency['repository'], dependency['commit'])
+    outDependencies = dict(inKeys, **dependency)
+    recursiveClone(dependency['repository'], dependency['commit'], outDependencies)
 
-def clone(repository, commit):
-  if repository in clonedRepositories:
-    raise 'Circular dependency'
 
+def clone(repository, commit, dependencies):
   global cloneIndex
-  cloneFolder = 'repo' + str(cloneIndex)
+
+  print("Getting repo {} to process...".format(repository))
+  if repository in clonedRepositories:
+    if not commit == clonedRepositories[repository].commit:
+      raise Exception(
+        'Commits not equal for same dependency! {}/{} =/= {}/{}'.format(repository, commit, repository,
+                                                                        clonedRepositories[
+                                                                          repository].commit))
+    print("Dependency already exist, adjusting the id...")
+    clonedRepositories[repository].id = cloneIndex
+    cloneFolder = None
+
+  else:
+    cloneFolder = 'repo' + str(cloneIndex)
+
+    local('git clone ' + repository + ' -b ' + commit + ' ' + cloneFolder)
+    clonedRepositories[repository] = Repository(cloneIndex, repository, commit, cloneFolder, dependencies)
+
   cloneIndex += 1
 
-  local('git clone ' + repository + ' -b ' + commit + ' ' + cloneFolder)
-
-  clonedRepositories.append((repository, commit, cloneFolder))
-
   return cloneFolder
+
 
 def getDependencies():
   with lcd('deploy'):
@@ -37,6 +69,7 @@ def getDependencies():
       deployConf = json.load(deployConfFile)
 
   return deployConf['dependencies']
+
 
 def main(configPath):
   with open(configPath) as envFile:
@@ -48,15 +81,16 @@ def main(configPath):
   with lcd(env.tmpFolder):
     recursiveClone(env["source-repository"], env["source-commit"])
     print("Checking canRun functions...")
-    for repo in reversed(clonedRepositories):
+    for repoTuple in sorted(clonedRepositories.items(), key=lambda x: x[1].id, reverse=True):
+      repo = repoTuple[1]
       try:
-        with lcd(path.join(repo[2], 'deploy')):
+        with lcd(path.join(repo.cloneFolder, 'deploy')):
           sys.path.append(local('pwd', capture=True))
           import deploy
           if 'canRun' not in dir(deploy):
-            print("No function canRun for deploy script in {}!".format(repo[0]))
+            print("No function canRun for deploy script in {}!".format(repo.repository))
           else:
-            print("Function canRun exist for deploy script in {}!".format(repo[0]))
+            print("Function canRun exist for deploy script in {}!".format(repo.repository))
             try:
               ret_value = deploy.canRun()
             except Exception as e:
@@ -65,32 +99,41 @@ def main(configPath):
             if ret_value:
               print("Deploy can run!")
             else:
-              raise EnvironmentError("Can not continue, missing requirements for deploy script in {}! Aborting...".format(repo[0]))
+              raise EnvironmentError(
+                "Can not continue, missing requirements for deploy script in {}! Aborting...".format(
+                  repo.repository))
           sys.path.remove(local('pwd', capture=True))
-      except ImportError as e:
-        print("No module deploy for {}!".format(repo[0]))
+      except ImportError:
+        print("No module deploy for {}!".format(repo.repository))
         pass
-      except EnvironmentError as e:
+      except EnvironmentError:
         local('rm -rf ../{}'.format(env.tmpFolder))
         raise
       finally:
         del sys.modules['deploy']
     print("Check done!")
     print("Running deploy functions...")
-    for repo in reversed(clonedRepositories):
+    for repoTuple in sorted(clonedRepositories.items(), key=lambda x: x[1].id, reverse=True):
+      oldEnv = deepcopy(env)
+      repo = repoTuple[1]
+      for key, value in repo.dependencies.items():
+        env[key] = value
+      env['source-repository'] = repo.repository
+      env['source-commit'] = repo.commit
       try:
-        with lcd(repo[2]):
+        with lcd(repo.cloneFolder):
           with lcd('deploy'):
             sys.path.append(local('pwd', capture=True))
             from deploy import runDeploy
             sys.path.remove(local('pwd', capture=True))
-            env['source-repository'] = repo[0]
-            env['source-commit'] = repo[1]
             execute(runDeploy)
       except Exception as e:
         print(e)
         pass
       finally:
         del sys.modules['deploy']
-        local('rm -rf ' + repo[2])
+        local('rm -rf ' + repo.cloneFolder)
+        env.clear()
+        for key, value in oldEnv.items():
+          env[key] = value
     print("Run done!")
