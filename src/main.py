@@ -82,7 +82,12 @@ def main(configPath):
     recursiveClone(env["source-repository"], env["source-commit"])
     print("Checking canRun functions...")
     for repoTuple in sorted(clonedRepositories.items(), key=lambda x: x[1].id, reverse=True):
+      oldEnv = deepcopy(env)
       repo = repoTuple[1]
+      for key, value in repo.dependencies.items():
+        env[key] = value
+      env['source-repository'] = repo.repository
+      env['source-commit'] = repo.commit
       try:
         with lcd(path.join(repo.cloneFolder, 'deploy')):
           sys.path.append(local('pwd', capture=True))
@@ -91,17 +96,20 @@ def main(configPath):
             print("No function canRun for deploy script in {}!".format(repo.repository))
           else:
             print("Function canRun exist for deploy script in {}!".format(repo.repository))
+            from deploy import canRun
             try:
-              ret_value = deploy.canRun()
+              ret_value = execute(canRun)
             except Exception as e:
               print(e)
-              ret_value = False
-            if ret_value:
-              print("Deploy can run!")
-            else:
-              raise EnvironmentError(
-                "Can not continue, missing requirements for deploy script in {}! Aborting...".format(
-                  repo.repository))
+              ret_value = {'all': False}
+
+            for host, value in ret_value.items():
+              if value:
+                print("Deploy can run!")
+              else:
+                raise EnvironmentError(
+                  "Can not continue, missing requirements for deploy script in {}! Aborting...".format(
+                    repo.repository))
           sys.path.remove(local('pwd', capture=True))
       except ImportError:
         print("No module deploy for {}!".format(repo.repository))
@@ -111,6 +119,9 @@ def main(configPath):
         raise
       finally:
         del sys.modules['deploy']
+        env.clear()
+        for key, value in oldEnv.items():
+          env[key] = value
     print("Check done!")
     print("Running deploy functions...")
     for repoTuple in sorted(clonedRepositories.items(), key=lambda x: x[1].id, reverse=True):
