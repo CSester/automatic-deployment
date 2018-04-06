@@ -27,8 +27,7 @@ def recursiveClone(repository, commit, inKeys=None):
   if inKeys is None:
     inKeys = {}
   clonedFolderName = clone(repository, commit, inKeys)
-  if clonedFolderName is None:
-    return
+
   with lcd(clonedFolderName):
     dependencies = getDependencies()
 
@@ -49,7 +48,7 @@ def clone(repository, commit, dependencies):
                                                                           repository].commit))
     print("Dependency already exist, adjusting the id...")
     clonedRepositories[repository].id = cloneIndex
-    cloneFolder = None
+    cloneFolder = clonedRepositories[repository].cloneFolder
 
   else:
     cloneFolder = 'repo' + str(cloneIndex)
@@ -126,14 +125,14 @@ def main(configPath):
             sys.path.append(local('pwd', capture=True))
             from deploy import runDeploy
             sys.path.remove(local('pwd', capture=True))
+            print("Running Deploy for {}".format(repo.repository))
             execute(runDeploy)
-      except Exception as e:
-        print(e)
-        pass
-      finally:
         del sys.modules['deploy']
-        local('rm -rf ' + repo.cloneFolder)
         env.clear()
         for key, value in oldEnv.items():
           env[key] = value
+      except Exception:
+        raise
+      finally:
+        local('rm -rf ' + repo.cloneFolder)
     print("Run done!")
