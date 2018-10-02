@@ -140,7 +140,7 @@ def main(configPath):
             print("Running Deploy for {}".format(repo.repository))
             error = execute(runDeploy)
             for host, returnValue in error.items():
-              if returnValue is None:
+              if returnValue is None or len(returnValue) is 0:
                 continue
               if host not in errors:
                 errors[host] = {}
