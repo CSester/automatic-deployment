@@ -71,6 +71,7 @@ def getDependencies():
 
 
 def main(configPath):
+  errors = {}
   with open(configPath) as envFile:
     envData = json.load(envFile)
     for key, val in envData.items():
@@ -137,7 +138,14 @@ def main(configPath):
             from deploy import runDeploy
             sys.path.remove(local('pwd', capture=True))
             print("Running Deploy for {}".format(repo.repository))
-            execute(runDeploy)
+            error = execute(runDeploy)
+            for host, returnValue in error.items():
+              if returnValue is None:
+                continue
+              if host not in errors:
+                errors[host] = {}
+              errors[host][repo.repository] = returnValue
+              
         del sys.modules['deploy']
         env.clear()
         for key, value in oldEnv.items():
@@ -147,3 +155,11 @@ def main(configPath):
       finally:
         local('rm -rf ' + repo.cloneFolder)
     print("Run done!")
+    if len(errors) is not 0:
+      print("Got following errors:")
+      for host, errorItem in errors.items():
+        print(host)
+        for repo, errorArray in errorItem.items():
+          print(f"\t{repo}")
+          for error in errorArray:
+            print(f"\t\t- {error}")
